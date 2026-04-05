@@ -485,6 +485,35 @@
   .pv-g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .pv-feat-label { font-size: 9px; color: var(--t3); text-transform: uppercase; letter-spacing: 1px; margin: 12px 0 8px; font-weight: 800; }
 
+  .pv-badge {
+    font-size: 11px; font-weight: 800; padding: 3px 10px;
+    background: var(--bg5); border: 1px solid var(--border3);
+    border-radius: 20px; color: var(--white); font-family: var(--font-mono);
+    letter-spacing: .3px;
+  }
+
+  .pv-action-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 700;
+    border: 1px solid var(--border2); background: var(--bg4); color: var(--t2);
+    cursor: pointer; transition: all .15s; font-family: var(--font-ui);
+    -webkit-tap-highlight-color: transparent;
+    &:hover { border-color: var(--green); color: var(--green); background: rgba(74,222,128,.08); }
+  }
+
+  .pv-count-badge {
+    font-size: 10px; font-weight: 800; padding: 2px 9px;
+    background: var(--bg4); border: 1px solid var(--border2);
+    border-radius: 20px; color: var(--t2); font-family: var(--font-mono);
+  }
+
+  .pv-auto-hint {
+    font-size: 10px; color: var(--t3); font-weight: 600;
+    display: flex; align-items: center; gap: 5px; font-family: var(--font-ui);
+    letter-spacing: .2px;
+    i { color: var(--yellow); }
+  }
+
   /* Editor footer */
   .ed-footer {
     position: sticky; bottom: 0;
@@ -934,6 +963,7 @@
 <div id="toast-wrap"></div>
 
 <script>
+const $ = id => document.getElementById(id);
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 const TAGS = ['root','nonRoot','Root','NonRoot','module','app','AxManager'];
@@ -1226,9 +1256,15 @@ function renderForm(){
     </div>
 
     <div class="sec">
-      <div class="sec-title">Previous Versions</div>
+      <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="display:flex;align-items:center;gap:10px">
+          Previous Versions
+          <span class="pv-count-badge" id="pv-count-badge"></span>
+        </span>
+        <span class="pv-auto-hint"><i class="fa-solid fa-wand-magic-sparkles"></i> Auto-update saat versi berubah</span>
+      </div>
       <div id="pv-list"></div>
-      <button class="btn-add" onclick="addPv()"><i class="fa-solid fa-plus"></i> Add Previous Version</button>
+      <button class="btn-add" onclick="addPv()" style="margin-top:4px"><i class="fa-solid fa-plus"></i> Tambah Manual</button>
     </div>
 
     <div class="ed-footer">
@@ -1281,35 +1317,82 @@ function addRow(key,listId,ph){
 function rmRow(key,listId,ph,i){ S.editData[key].splice(i,1); renderList(key,listId,ph); }
 
 function renderPv(){
-  $('pv-list').innerHTML=(S.editData.previousVersions||[]).map((pv,i)=>`
-    <div class="pv-card">
+  const pvs = S.editData.previousVersions||[];
+  const pvCount = pvs.length;
+  // Update count badge
+  const badge = $('pv-count-badge');
+  if(badge) badge.textContent = pvCount ? `${pvCount} versi` : '';
+  $('pv-list').innerHTML = pvs.length === 0
+    ? '<div style="text-align:center;padding:20px 0;color:var(--t3);font-size:12px"><i class="fa-solid fa-clock-rotate-left" style="font-size:24px;display:block;margin-bottom:8px;opacity:.2"></i>Belum ada previous version.<br>Akan otomatis terisi saat kamu update versi/link.</div>'
+    : pvs.map((pv,i)=>`
+    <div class="pv-card" id="pvc-${i}">
       <div class="pv-head">
-        <span class="pv-num">Previous Version ${i+1}</span>
-        <button class="pv-del-btn" onclick="rmPv(${i})"><i class="fa-solid fa-trash-can"></i></button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="pv-badge">${esc(pv.version||`v${i+1}`)}</span>
+          <span class="pv-num">${esc(pv.date||'')}</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="pv-action-btn" onclick="promoteToLatest(${i})" title="Jadikan versi terbaru">
+            <i class="fa-solid fa-arrow-up"></i> Promote
+          </button>
+          <button class="pv-del-btn" onclick="rmPv(${i})"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
       </div>
       <div class="pv-g2">
-        <div><label class="lbl">Version</label><input class="inp" value="${esc(pv.version||'')}" placeholder="8.3" oninput="S.editData.previousVersions[${i}].version=this.value"></div>
+        <div><label class="lbl">Version</label><input class="inp" value="${esc(pv.version||'')}" placeholder="8.3" oninput="S.editData.previousVersions[${i}].version=this.value;renderPvBadge(${i})"></div>
         <div><label class="lbl">Tanggal</label><input class="inp" value="${esc(pv.date||'')}" placeholder="${fmtDate()}" oninput="S.editData.previousVersions[${i}].date=this.value"></div>
         <div><label class="lbl">File Size</label><input class="inp" value="${esc(pv.fileSize||'')}" placeholder="6.08 MB" oninput="S.editData.previousVersions[${i}].fileSize=this.value"></div>
         <div><label class="lbl">Download Link</label><input class="inp" value="${esc(pv.downloadLink||'')}" placeholder="https://..." oninput="S.editData.previousVersions[${i}].downloadLink=this.value"></div>
       </div>
       <div style="margin-top:10px">
-        <label class="lbl">Description</label>
-        <textarea class="inp" rows="2" placeholder="Deskripsi versi ini..." oninput="S.editData.previousVersions[${i}].description=this.value">${esc(pv.description||'')}</textarea>
+        <label class="lbl">Description / Changelog</label>
+        <textarea class="inp" rows="2" placeholder="Changelog atau deskripsi versi ini..." oninput="S.editData.previousVersions[${i}].description=this.value">${esc(pv.description||'')}</textarea>
       </div>
-      <div class="pv-feat-label">Features (versi ini)</div>
+      <div class="pv-feat-label">Features changelog versi ini</div>
       <div class="dyn-list" id="pvf-${i}"></div>
       <button class="btn-add" onclick="addPvFeat(${i})"><i class="fa-solid fa-plus"></i> Add Feature</button>
     </div>
   `).join('');
-  (S.editData.previousVersions||[]).forEach((_,i)=>renderPvFeat(i));
+  pvs.forEach((_,i)=>renderPvFeat(i));
+}
+function renderPvBadge(i){
+  const badge = document.querySelector(`#pvc-${i} .pv-badge`);
+  if(badge) badge.textContent = S.editData.previousVersions[i].version || `v${i+1}`;
 }
 function addPv(){
   S.editData.previousVersions=S.editData.previousVersions||[];
-  S.editData.previousVersions.push({version:'',date:'',fileSize:'',downloadLink:'',description:'',features:[]});
+  S.editData.previousVersions.push({version:'',date:fmtDate(),fileSize:'',downloadLink:'',description:'',features:[]});
   renderPv();
+  // Scroll to new card
+  setTimeout(()=>{
+    const cards=document.querySelectorAll('.pv-card');
+    if(cards.length) cards[cards.length-1].scrollIntoView({behavior:'smooth',block:'nearest'});
+  },50);
 }
 function rmPv(i){ S.editData.previousVersions.splice(i,1); renderPv(); }
+function promoteToLatest(i){
+  const pv = S.editData.previousVersions[i];
+  const cur = {
+    version: $('f-version').value,
+    date: $('f-date').value,
+    fileSize: $('f-size').value,
+    downloadLink: $('f-link').value,
+    description: '',
+    features: clone(S.editData.features||[]),
+  };
+  // Swap: current becomes prev, selected prev becomes current
+  S.editData.previousVersions[i] = cur;
+  $('f-version').value = pv.version||'';
+  $('f-date').value = pv.date||'';
+  $('f-size').value = pv.fileSize||'';
+  $('f-link').value = pv.downloadLink||'';
+  S.editData.version = pv.version||'';
+  S.editData.date = pv.date||'';
+  S.editData.fileSize = pv.fileSize||'';
+  S.editData.downloadLink = pv.downloadLink||'';
+  renderPv();
+  toast(`Versi ${pv.version} dipromosikan ke Latest. Versi sebelumnya masuk ke histori.`,'ok');
+}
 function renderPvFeat(pi){
   const el=$('pvf-'+pi); if(!el) return;
   el.innerHTML=(S.editData.previousVersions[pi].features||[]).map((f,fi)=>`
@@ -1327,12 +1410,39 @@ function rmPvFeat(pi,fi){ S.editData.previousVersions[pi].features.splice(fi,1);
 
 function saveModule(){
   const d=S.editData;
+  const newVersion=$('f-version').value.trim();
+  const newLink=$('f-link').value.trim();
+  const newSize=$('f-size').value.trim();
+
+  // Auto-move current version to previousVersions if version or link changed
+  if(S.activeIdx !== -1){
+    const old=S.modules[S.activeIdx];
+    const versionChanged = old.version && newVersion && old.version !== newVersion;
+    const linkChanged = old.downloadLink && newLink && old.downloadLink !== newLink;
+    if((versionChanged || linkChanged) && old.version && old.downloadLink){
+      const snap = {
+        version: old.version,
+        date: old.date||'',
+        fileSize: old.fileSize||'',
+        downloadLink: old.downloadLink||'',
+        description: 'Versi sebelumnya',
+        features: clone(old.features||[]),
+      };
+      d.previousVersions = d.previousVersions||[];
+      const alreadyExists = d.previousVersions.some(pv=>pv.version===snap.version && pv.downloadLink===snap.downloadLink);
+      if(!alreadyExists){
+        d.previousVersions.unshift(snap);
+        setTimeout(()=>toast(`Versi ${snap.version} otomatis dipindah ke Previous Versions`,'if'),300);
+      }
+    }
+  }
+
   d.id=$('f-id').value.trim(); d.title=$('f-title').value.trim();
-  d.version=$('f-version').value.trim(); d.type=$('f-type').value;
+  d.version=newVersion; d.type=$('f-type').value;
   d.status=$('f-status').value.trim(); d.date=$('f-date').value.trim();
   d.developer=$('f-dev').value.trim(); d.icon=$('f-icon').value.trim();
   d.bannerImg=$('f-banner').value.trim(); d.shortDesc=$('f-desc').value.trim();
-  d.fileSize=$('f-size').value.trim(); d.downloadLink=$('f-link').value.trim();
+  d.fileSize=newSize; d.downloadLink=newLink;
   d.specialThanks=$('f-thanks').value.trim();
   d.tags=Array.from(document.querySelectorAll('.tag-cb:checked')).map(c=>c.value);
   d.features=(d.features||[]).filter(x=>x.trim());
